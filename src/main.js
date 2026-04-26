@@ -1,4 +1,4 @@
-import { provincias, candidatos, simularProvincia, evaluarBalotaje, calcularDHondt, calcularSenadores } from './electoralEngine.js';
+import { provincias, candidatos, simularProvincia, evaluarBalotaje, calcularDHondt, calcularSenadores, PADRON_NACIONAL } from './electoralEngine.js';
 
 const btnStart = document.getElementById('btn-start');
 const globalProgressBar = document.getElementById('global-progress-bar');
@@ -139,17 +139,30 @@ async function startSimulation() {
     congressModule.classList.add('hidden');
     initTileMap();
     
-    let totalPais = { lla: 0, uxp: 0, pro: 0, ucr: 0, hnp: 0, pd: 0, fit: 0, blanco: 0 };
-    let totalDiputados = { lla: 0, uxp: 0, pro: 0, ucr: 0, hnp: 0, pd: 0, fit: 0 };
-    let totalSenadores = { lla: 0, uxp: 0, pro: 0, ucr: 0, hnp: 0, pd: 0, fit: 0 };
+    let totalPaisPct = {};
+    let totalPaisAbs = {};
+    let totalDiputados = {};
+    let totalSenadores = {};
+    
+    Object.keys(candidatos).forEach(k => {
+        totalPaisPct[k] = 0;
+        totalPaisAbs[k] = 0;
+        if(k !== 'blanco') {
+            totalDiputados[k] = 0;
+            totalSenadores[k] = 0;
+        }
+    });
     let pesoAcumulado = 0;
     
-    statusBadge.textContent = 'En Progreso...';
-    statusBadge.className = 'px-4 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-bold border border-blue-500/50 animate-pulse';
-
     const scenario = scenarioSelect.value;
     const scenarioLabel = scenarioSelect.options[scenarioSelect.selectedIndex].text;
     const turnout = parseInt(turnoutSlider.value);
+
+    // Calcular padron total emitido segun turnout
+    const totalEmitidosNacional = PADRON_NACIONAL * (turnout / 100);
+    
+    statusBadge.textContent = 'En Progreso...';
+    statusBadge.className = 'px-4 py-1.5 rounded-full bg-blue-500/20 text-blue-400 text-sm font-bold border border-blue-500/50 animate-pulse';
     
     let baseAjuste = {};
     if (scenario === 'lla_surge') baseAjuste = { lla: 5 };
@@ -162,14 +175,18 @@ async function startSimulation() {
         
         let resProvincia = simularProvincia(prov, baseAjuste, turnout);
         
-        // Sumar al total nacional ponderado
+        // Votos absolutos emitidos en esta provincia
+        let emitidosProvincia = totalEmitidosNacional * (prov.peso / 100);
+
+        // Sumar al total nacional ponderado y absoluto
         Object.keys(resProvincia).forEach(k => {
-            totalPais[k] += resProvincia[k] * (prov.peso / 100);
+            totalPaisPct[k] += resProvincia[k] * (prov.peso / 100);
+            totalPaisAbs[k] += emitidosProvincia * (resProvincia[k] / 100);
         });
         
         // Calcular Congreso para esta provincia
         let dipProv = calcularDHondt(resProvincia, prov.escanos);
-        let senProv = calcularSenadores(resProvincia);
+        let senProv = calcularSenadores(resProvincia, prov.renuevaSenadores);
         
         Object.keys(dipProv).forEach(k => totalDiputados[k] += dipProv[k]);
         Object.keys(senProv).forEach(k => totalSenadores[k] += senProv[k]);
@@ -199,23 +216,33 @@ async function startSimulation() {
         }
 
         // Actualizar Tabla
+        const fmt = new Intl.NumberFormat('es-AR');
+        let votosGanadorLocal = fmt.format(Math.round(emitidosProvincia * (ganador[1] / 100)));
+        let votosSegundoLocal = fmt.format(Math.round(emitidosProvincia * (segundo[1] / 100)));
+
         const row = document.createElement('tr');
         row.className = "border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors animate-fade-in";
         row.innerHTML = `
             <td class="py-3 font-medium text-slate-200">${prov.n}</td>
             <td class="py-3 text-right text-slate-400 text-xs">${prov.peso.toFixed(2)}%</td>
             <td class="py-3 text-center">
-                <span class="px-2 py-1 rounded text-xs font-bold" style="background-color: ${hexToRgba(cGanador.color, 0.2)}; color: ${cGanador.color}; border: 1px solid ${hexToRgba(cGanador.color, 0.5)}">
+                <span class="px-2 py-1 rounded text-xs font-bold block mb-1" style="background-color: ${hexToRgba(cGanador.color, 0.2)}; color: ${cGanador.color}; border: 1px solid ${hexToRgba(cGanador.color, 0.5)}">
                     ${cGanador.nombre}
                 </span>
             </td>
-            <td class="py-3 text-right font-bold" style="color: ${cGanador.color}">${ganador[1].toFixed(1)}%</td>
-            <td class="py-3 text-right text-slate-400 text-xs">${cSegundo.nombre} (${segundo[1].toFixed(1)}%)</td>
+            <td class="py-3 text-right">
+                <div class="font-bold text-lg leading-tight" style="color: ${cGanador.color}">${ganador[1].toFixed(1)}%</div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider">${votosGanadorLocal} v.</div>
+            </td>
+            <td class="py-3 text-right text-slate-400 text-xs">
+                <div>${cSegundo.nombre} (${segundo[1].toFixed(1)}%)</div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider">${votosSegundoLocal} v.</div>
+            </td>
         `;
         provTableBody.prepend(row);
         
         // Actualizar Cartelera Nacional
-        renderNationalCharts(totalPais, pesoAcumulado);
+        renderNationalCharts(totalPaisPct, totalPaisAbs, pesoAcumulado);
     }
     
     playSuccess();
@@ -231,10 +258,14 @@ async function startSimulation() {
     statusBadge.className = 'px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-sm font-bold border border-emerald-500/50';
 
     // Evaluar Constitucionalidad (Balotaje)
-    const analisis = evaluarBalotaje(totalPais);
+    const analisis = evaluarBalotaje(totalPaisPct, totalPaisAbs);
+    const fmtTot = new Intl.NumberFormat('es-AR');
     balotajeModule.classList.remove('hidden');
     balotajeText.innerHTML = `
-        <strong>Análisis sobre votos afirmativos válidos (sin blancos/nulos):</strong><br>
+        <div class="flex justify-between items-center mb-2 border-b border-amber-500/20 pb-2">
+            <strong>Votos Afirmativos Válidos:</strong>
+            <span class="font-mono bg-amber-500/20 px-2 rounded">${fmtTot.format(Math.round(analisis.totalAfirmativoAbs))}</span>
+        </div>
         1. ${candidatos[analisis.primero[0]].nombre}: ${analisis.porcentajesAfirmativos[analisis.primero[0]].toFixed(2)}%<br>
         2. ${candidatos[analisis.segundo[0]].nombre}: ${analisis.porcentajesAfirmativos[analisis.segundo[0]].toFixed(2)}%<br>
         <br>
@@ -250,27 +281,32 @@ async function startSimulation() {
     saveHistory(scenarioLabel, turnout, analisis.primero[0], analisis.porcentajesAfirmativos[analisis.primero[0]]);
 }
 
-function renderNationalCharts(totalPaisPonderado, pesoTotalAcumulado) {
-    let dataNormalizada = {};
-    Object.keys(totalPaisPonderado).forEach(k => {
-        dataNormalizada[k] = (totalPaisPonderado[k] / pesoTotalAcumulado) * 100;
+function renderNationalCharts(totalPaisPonderadoPct, totalPaisAbs, pesoTotalAcumulado) {
+    let dataNormalizadaPct = {};
+    Object.keys(totalPaisPonderadoPct).forEach(k => {
+        dataNormalizadaPct[k] = (totalPaisPonderadoPct[k] / pesoTotalAcumulado) * 100;
     });
 
-    let orden = Object.entries(dataNormalizada).sort((a,b) => b[1] - a[1]);
+    let orden = Object.entries(dataNormalizadaPct).sort((a,b) => b[1] - a[1]);
+    const fmt = new Intl.NumberFormat('es-AR');
     
     let html = '';
     orden.forEach(item => {
         let key = item[0];
         let pct = item[1];
         let cand = candidatos[key];
+        let absVotos = fmt.format(Math.round(totalPaisAbs[key]));
         
         html += `
             <div class="mb-4">
                 <div class="flex justify-between items-end mb-1">
                     <span class="font-bold text-slate-200">${cand.nombre}</span>
-                    <span class="font-black text-xl" style="color: ${cand.color}">${pct.toFixed(2)}%</span>
+                    <div class="text-right">
+                        <div class="font-black text-xl leading-none" style="color: ${cand.color}">${pct.toFixed(2)}%</div>
+                        <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">${absVotos} votos</div>
+                    </div>
                 </div>
-                <div class="w-full bg-slate-900 rounded-full h-4 overflow-hidden border border-slate-800 relative">
+                <div class="w-full bg-slate-900 rounded-full h-4 overflow-hidden border border-slate-800 relative mt-1">
                     <div class="h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden" 
                          style="width: ${pct}%; background-color: ${cand.color}; box-shadow: 0 0 10px ${cand.color};">
                          <svg class="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
@@ -316,11 +352,11 @@ function renderCongress(diputados, senadores) {
         return { barHtml, legendHtml };
     };
 
-    let dipUI = buildBar(diputados, 257);
+    let dipUI = buildBar(diputados, 130);
     barDiputados.innerHTML = dipUI.barHtml;
     legendDiputados.innerHTML = dipUI.legendHtml;
 
-    let senUI = buildBar(senadores, 72);
+    let senUI = buildBar(senadores, 24);
     barSenadores.innerHTML = senUI.barHtml;
     legendSenadores.innerHTML = senUI.legendHtml;
 }
