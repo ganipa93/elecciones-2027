@@ -61,6 +61,23 @@
                 <p class="text-[10px] text-slate-500 mt-1">Menor participación penaliza a partidos tradicionales.</p>
             </div>
             
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-slate-500 mb-1">Velocidad</label>
+              <select id="speed-select" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                <option value="500">Normal (0.5s)</option>
+                <option value="1500">Paso a Paso (1.5s)</option>
+                <option value="0">Instantáneo</option>
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between bg-slate-900 p-3 rounded-lg border border-slate-700">
+                <label for="coalition-toggle" class="text-xs font-bold text-slate-300 cursor-pointer">AGRUPAR COALICIONES</label>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="coalition-toggle" class="sr-only peer">
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+            </div>
+
             <button id="btn-start" class="w-full relative overflow-hidden group bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-[0_0_15px_rgba(37,99,235,0.5)] hover:shadow-[0_0_25px_rgba(37,99,235,0.8)] mt-4">
               <span class="relative z-10 flex items-center justify-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -185,6 +202,10 @@
 
       </main>
     </div>
+  </div>
+  <!-- Tooltip Element -->
+  <div id="map-tooltip" class="fixed pointer-events-none opacity-0 transition-opacity duration-200 z-50 bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded shadow-2xl text-sm text-slate-200" style="min-width: 200px;">
+      <!-- Content injected via JS -->
   </div>
 
   <script type="module" src="/src/main.js"></script>

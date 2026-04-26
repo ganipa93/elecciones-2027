@@ -1,4 +1,4 @@
-import { provincias, candidatos, simularProvincia, evaluarBalotaje, calcularDHondt, calcularSenadores, PADRON_NACIONAL } from './electoralEngine.js';
+import { provincias, candidatos, coaliciones, simularProvincia, evaluarBalotaje, calcularDHondt, calcularSenadores, PADRON_NACIONAL } from './electoralEngine.js';
 
 const btnStart = document.getElementById('btn-start');
 const globalProgressBar = document.getElementById('global-progress-bar');
@@ -11,7 +11,10 @@ const balotajeText = document.getElementById('balotaje-text');
 const scenarioSelect = document.getElementById('scenario-select');
 const turnoutSlider = document.getElementById('turnout-slider');
 const turnoutVal = document.getElementById('turnout-val');
+const speedSelect = document.getElementById('speed-select');
+const coalitionToggle = document.getElementById('coalition-toggle');
 const tileMap = document.getElementById('tile-map');
+const mapTooltip = document.getElementById('map-tooltip');
 const congressModule = document.getElementById('congress-module');
 const barDiputados = document.getElementById('bar-diputados');
 const barSenadores = document.getElementById('bar-senadores');
@@ -23,6 +26,12 @@ const btnSound = document.getElementById('btn-sound');
 
 let isRunning = false;
 let soundEnabled = true;
+let groupCoalitions = false;
+
+coalitionToggle.addEventListener('change', (e) => {
+    groupCoalitions = e.target.checked;
+    // We would need current totals to re-render, but for simplicity it applies on the fly or at the end.
+});
 
 // --- AUDIO SYSTEM ---
 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -168,9 +177,11 @@ async function startSimulation() {
     if (scenario === 'lla_surge') baseAjuste = { lla: 5 };
     if (scenario === 'uxp_surge') baseAjuste = { uxp: 5 };
 
+    const speed = parseInt(speedSelect.value);
+
     for (let prov of provincias) {
         // Simular latencia de carga de datos (Live mode)
-        await new Promise(res => setTimeout(res, 500));
+        if (speed > 0) await new Promise(res => setTimeout(res, speed));
         playTick();
         
         let resProvincia = simularProvincia(prov, baseAjuste, turnout);
@@ -205,7 +216,7 @@ async function startSimulation() {
         let cGanador = candidatos[ganador[0]];
         let cSegundo = candidatos[segundo[0]];
         
-        // Actualizar Tile Map
+        // Actualizar Tile Map y Tooltips
         const tile = document.getElementById(`tile-${prov.id}`);
         if (tile) {
             tile.style.backgroundColor = hexToRgba(cGanador.color, 0.8);
@@ -213,6 +224,30 @@ async function startSimulation() {
             tile.style.color = '#ffffff';
             tile.classList.add('shadow-[0_0_15px_rgba(255,255,255,0.3)]');
             setTimeout(() => tile.classList.remove('shadow-[0_0_15px_rgba(255,255,255,0.3)]'), 300);
+
+            // Swing state detector
+            let diff = ganador[1] - segundo[1];
+            if (diff < 3) {
+                tile.classList.add('animate-pulse', 'border-4', 'border-yellow-400');
+            }
+
+            // Tooltips
+            tile.onmouseenter = (e) => {
+                mapTooltip.style.opacity = 1;
+                mapTooltip.innerHTML = `
+                    <div class="font-bold text-lg mb-1">${prov.n}</div>
+                    <div class="text-xs mb-1">1º ${cGanador.nombre}: <span style="color:${cGanador.color}">${ganador[1].toFixed(1)}%</span></div>
+                    <div class="text-xs text-slate-400 mb-2">2º ${cSegundo.nombre}: <span style="color:${cSegundo.color}">${segundo[1].toFixed(1)}%</span></div>
+                    <div class="text-[10px] uppercase text-amber-400">Diferencia: ${diff.toFixed(2)}%</div>
+                `;
+            };
+            tile.onmousemove = (e) => {
+                mapTooltip.style.left = e.pageX + 15 + 'px';
+                mapTooltip.style.top = e.pageY + 15 + 'px';
+            };
+            tile.onmouseleave = () => {
+                mapTooltip.style.opacity = 0;
+            };
         }
 
         // Actualizar Tabla
@@ -287,28 +322,49 @@ function renderNationalCharts(totalPaisPonderadoPct, totalPaisAbs, pesoTotalAcum
         dataNormalizadaPct[k] = (totalPaisPonderadoPct[k] / pesoTotalAcumulado) * 100;
     });
 
-    let orden = Object.entries(dataNormalizadaPct).sort((a,b) => b[1] - a[1]);
+    let displayData = {};
+    let displayAbs = {};
+
+    if (groupCoalitions) {
+        Object.keys(coaliciones).forEach(c => {
+            displayData[c] = 0;
+            displayAbs[c] = 0;
+        });
+        Object.keys(dataNormalizadaPct).forEach(k => {
+            let coal = Object.keys(coaliciones).find(c => coaliciones[c].candidatos.includes(k));
+            if (coal) {
+                displayData[coal] += dataNormalizadaPct[k];
+                displayAbs[coal] += totalPaisAbs[k];
+            }
+        });
+    } else {
+        displayData = { ...dataNormalizadaPct };
+        displayAbs = { ...totalPaisAbs };
+    }
+
+    let orden = Object.entries(displayData).sort((a,b) => b[1] - a[1]);
     const fmt = new Intl.NumberFormat('es-AR');
     
     let html = '';
     orden.forEach(item => {
         let key = item[0];
         let pct = item[1];
-        let cand = candidatos[key];
-        let absVotos = fmt.format(Math.round(totalPaisAbs[key]));
+        if(pct === 0) return;
+        let candInfo = groupCoalitions ? coaliciones[key] : candidatos[key];
+        let absVotos = fmt.format(Math.round(displayAbs[key]));
         
         html += `
             <div class="mb-4">
                 <div class="flex justify-between items-end mb-1">
-                    <span class="font-bold text-slate-200">${cand.nombre}</span>
+                    <span class="font-bold text-slate-200">${candInfo.nombre}</span>
                     <div class="text-right">
-                        <div class="font-black text-xl leading-none" style="color: ${cand.color}">${pct.toFixed(2)}%</div>
+                        <div class="font-black text-xl leading-none" style="color: ${candInfo.color}">${pct.toFixed(2)}%</div>
                         <div class="text-[10px] text-slate-400 uppercase tracking-widest mt-1">${absVotos} votos</div>
                     </div>
                 </div>
                 <div class="w-full bg-slate-900 rounded-full h-4 overflow-hidden border border-slate-800 relative mt-1">
                     <div class="h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden" 
-                         style="width: ${pct}%; background-color: ${cand.color}; box-shadow: 0 0 10px ${cand.color};">
+                         style="width: ${pct}%; background-color: ${candInfo.color}; box-shadow: 0 0 10px ${candInfo.color};">
                          <svg class="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
                             <defs>
                                 <pattern id="stripes" width="8" height="8" patternTransform="rotate(45)">
@@ -332,19 +388,32 @@ function renderCongress(diputados, senadores) {
     const buildBar = (data, total) => {
         let barHtml = '';
         let legendHtml = '';
-        let sorted = Object.entries(data).sort((a,b) => b[1] - a[1]).filter(i => i[1] > 0);
+        
+        let displayData = {};
+        if (groupCoalitions) {
+            Object.keys(coaliciones).forEach(c => displayData[c] = 0);
+            Object.keys(data).forEach(k => {
+                let coal = Object.keys(coaliciones).find(c => coaliciones[c].candidatos.includes(k));
+                if (coal) displayData[coal] += data[k];
+            });
+        } else {
+            displayData = { ...data };
+        }
+
+        let sorted = Object.entries(displayData).sort((a,b) => b[1] - a[1]).filter(i => i[1] > 0);
         
         sorted.forEach(item => {
             let k = item[0];
             let v = item[1];
-            let cand = candidatos[k];
+            let candInfo = groupCoalitions ? coaliciones[k] : candidatos[k];
             let pct = (v / total) * 100;
+            let displayLabel = groupCoalitions ? candInfo.nombre.substring(0,4).toUpperCase() : candidatos[k].id.toUpperCase();
             
-            barHtml += `<div class="h-full" style="width: ${pct}%; background-color: ${cand.color};" title="${cand.nombre}: ${v}"></div>`;
+            barHtml += `<div class="h-full" style="width: ${pct}%; background-color: ${candInfo.color};" title="${candInfo.nombre}: ${v}"></div>`;
             legendHtml += `
                 <div class="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                    <div class="w-2 h-2 rounded-full" style="background-color: ${cand.color}"></div>
-                    <span class="text-slate-400">${cand.id.toUpperCase()}</span>
+                    <div class="w-2 h-2 rounded-full" style="background-color: ${candInfo.color}"></div>
+                    <span class="text-slate-400">${displayLabel}</span>
                     <span class="font-bold text-white">${v}</span>
                 </div>
             `;

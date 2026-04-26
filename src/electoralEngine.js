@@ -35,13 +35,25 @@ export const candidatos = {
     lla: { id: 'lla', nombre: 'J. Milei', color: '#7a3e9d' },
     uxp_grabois: { id: 'uxp_grabois', nombre: 'J. Grabois', color: '#00b4d8' },
     uxp_kicillof: { id: 'uxp_kicillof', nombre: 'A. Kicillof', color: '#0077b6' },
+    uxp_massa: { id: 'uxp_massa', nombre: 'S. Massa', color: '#03045e' },
     pro_macri: { id: 'pro_macri', nombre: 'M. Macri', color: '#ffd700' },
-    pro_bullrich: { id: 'pro_bullrich', nombre: 'E. Bullrich', color: '#ffb703' },
     ucr_manes: { id: 'ucr_manes', nombre: 'F. Manes', color: '#e63946' },
+    ucr_lousteau: { id: 'ucr_lousteau', nombre: 'M. Lousteau', color: '#fca311' },
+    ru_lopez_murphy: { id: 'ru_lopez_murphy', nombre: 'R. López Murphy', color: '#fb8500' },
     pj_schiaretti: { id: 'pj_schiaretti', nombre: 'J. Schiaretti', color: '#023e8a' },
+    hcf_pichetto: { id: 'hcf_pichetto', nombre: 'M. Pichetto', color: '#0096c7' },
     pd_villarruel: { id: 'pd_villarruel', nombre: 'V. Villarruel', color: '#a78bfa' },
     fit: { id: 'fit', nombre: 'M. Bregman', color: '#e51a2d' },
     blanco: { id: 'blanco', nombre: 'Voto Blanco', color: '#999999' }
+};
+
+export const coaliciones = {
+    'uxp': { nombre: 'Unión por la Patria', color: '#0077b6', candidatos: ['uxp_kicillof', 'uxp_grabois', 'uxp_massa'] },
+    'lla': { nombre: 'La Libertad Avanza', color: '#8b5cf6', candidatos: ['lla', 'pd_villarruel'] },
+    'jxc': { nombre: 'Juntos', color: '#ffd700', candidatos: ['pro_macri', 'ucr_manes', 'ucr_lousteau', 'ru_lopez_murphy'] },
+    'hcf': { nombre: 'Peronismo Federal', color: '#023e8a', candidatos: ['pj_schiaretti', 'hcf_pichetto'] },
+    'fit': { nombre: 'Frente de Izquierda', color: '#e51a2d', candidatos: ['fit'] },
+    'blanco': { nombre: 'Voto Blanco', color: '#999999', candidatos: ['blanco'] }
 };
 
 // Genera un resultado aleatorio para una provincia dada
@@ -52,17 +64,22 @@ export function simularProvincia(provincia, baseAjuste = {}, turnout = 80) {
         turnoutMalus = (70 - turnout) * 0.2; // Hasta -4% si hay 50% de turnout
     }
 
+    let macriBoost = (provincia.id === 'sfe' || provincia.id === 'cba') ? 5 : 0;
+
     let v = {
-        lla: 30 + (provincia.sesgo.lla || 0) + (Math.random() * 8 - 4) + (baseAjuste.lla || 0),
-        uxp_grabois: 5 + (provincia.sesgo.uxp || 0) / 4 + (Math.random() * 3 - 1.5) + (baseAjuste.uxp || 0) - turnoutMalus/3,
-        uxp_kicillof: 22 + (provincia.sesgo.uxp || 0) * 0.75 + (Math.random() * 6 - 3) + (baseAjuste.uxp || 0) - turnoutMalus,
-        pro_macri: 10 + (provincia.sesgo.pro || 0) * 0.6 + (Math.random() * 4 - 2) + (baseAjuste.pro || 0),
-        pro_bullrich: 5 + (provincia.sesgo.pro || 0) * 0.4 + (Math.random() * 3 - 1.5) + (baseAjuste.pro || 0),
-        ucr_manes: 7 + (provincia.sesgo.ucr || 0) + (Math.random() * 4 - 2) + (baseAjuste.ucr || 0) - turnoutMalus,
-        pj_schiaretti: 5 + (provincia.sesgo.pj || provincia.sesgo.hnp || 0) + (Math.random() * 3 - 1.5) + (baseAjuste.hnp || 0),
-        pd_villarruel: 5 + (provincia.sesgo.pd || 0) + (Math.random() * 3 - 1.5) + (baseAjuste.pd || 0),
-        fit: 3 + (provincia.sesgo.fit || 0) + (Math.random() * 2 - 1) + (baseAjuste.fit || 0),
-        blanco: 4 + (Math.random() * 2 - 1) + (turnoutMalus * 1.5) // Baja participación aumenta voto blanco
+        lla: 38.1 + (provincia.sesgo.lla || 0) + (Math.random() * 6 - 3) + (baseAjuste.lla || 0),
+        uxp_kicillof: 25 + (provincia.sesgo.uxp || 0) * 0.75 + (Math.random() * 4 - 2) + (baseAjuste.uxp || 0) - turnoutMalus,
+        uxp_massa: 8 + (provincia.sesgo.uxp || 0) * 0.2 + (Math.random() * 3 - 1.5) + (baseAjuste.uxp || 0),
+        uxp_grabois: 5 + (provincia.sesgo.uxp || 0) * 0.05 + (Math.random() * 2 - 1) + (baseAjuste.uxp || 0) - turnoutMalus/3,
+        pro_macri: 10 + macriBoost + (provincia.sesgo.pro || 0) * 0.7 + (Math.random() * 4 - 2) + (baseAjuste.pro || 0),
+        ucr_manes: 3 + (provincia.sesgo.ucr || 0) * 0.5 + (Math.random() * 2 - 1) + (baseAjuste.ucr || 0) - turnoutMalus,
+        ucr_lousteau: 2 + (provincia.sesgo.ucr || 0) * 0.5 + (Math.random() * 2 - 1) + (baseAjuste.ucr || 0),
+        ru_lopez_murphy: 1.5 + (Math.random() * 1 - 0.5),
+        pj_schiaretti: 3.5 + (provincia.sesgo.pj || provincia.sesgo.hnp || 0) * 0.7 + (Math.random() * 2 - 1) + (baseAjuste.hnp || 0),
+        hcf_pichetto: 1.3 + (provincia.sesgo.hnp || 0) * 0.3 + (Math.random() * 1 - 0.5),
+        pd_villarruel: 3 + (provincia.sesgo.pd || 0) + (Math.random() * 2 - 1) + (baseAjuste.pd || 0),
+        fit: 11.4 + (provincia.sesgo.fit || 0) + (Math.random() * 3 - 1.5) + (baseAjuste.fit || 0),
+        blanco: 12.7 + (Math.random() * 2 - 1) + (turnoutMalus * 1.5) // Baja participación aumenta voto blanco
     };
 
     // Asegurar no negativos
